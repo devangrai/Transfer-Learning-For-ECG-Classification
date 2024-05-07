@@ -29,6 +29,7 @@ def read_challenge17_data(db_dir, verbose=False):
     @return: Tuple of: (array of wfdb records, DataFrame with record ids as index and one hot encoded labels as data).
     """
     db_dir = Path(db_dir)
+    print(db_dir)
     if not db_dir.is_dir():
         raise ValueError('Provided path is not a directory: %s' % db_dir)
     index_file = db_dir / 'RECORDS'

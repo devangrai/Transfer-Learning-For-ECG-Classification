@@ -208,7 +208,7 @@ if __name__ == '__main__':
         if args.val_metric in ['loss', 'acc']:
             monitor = ('val_' + args.val_metric) if val else args.val_metric
             checkpoint = tf.keras.callbacks.ModelCheckpoint(
-                filepath=str(args.job_dir / 'epoch_{epoch:02d}' / 'model.weights'),
+                filepath=str(args.job_dir / 'epoch_{epoch:02d}' / 'model.weights.h5'),
                 monitor=monitor,
                 save_best_only=False,
                 save_weights_only=True,
@@ -217,7 +217,7 @@ if __name__ == '__main__':
         elif args.val_metric == 'f1':
             if val:
                 checkpoint = CustomCheckpoint(
-                    filepath=str(args.job_dir / 'epoch_{epoch:02d}' / 'model.weights'),
+                    filepath=str(args.job_dir / 'epoch_{epoch:02d}' / 'model.weights.h5'),
                     data=(validation_data, val['y']),
                     score_fn=f1,
                     save_best_only=False,

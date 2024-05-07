@@ -79,8 +79,10 @@ if __name__ == '__main__':
     if args.test:
         print('Loading test data from {} ...'.format(args.test))
         test = load_pkl(str(args.test))
+        print("Test is loaded") # DELETE
     else:
         test = None
+        print("Test is none") # DELETE
 
     if args.subset:
         original_train_size = len(train['x'])
@@ -130,7 +132,9 @@ if __name__ == '__main__':
             # initialize weights (excluding the optimizer state) to load the pretrained resnet
             # the optimizer state is randomly initialized in the `model.compile` function
             print('Loading weights from file {} ...'.format(args.weights_file))
-            model.load_weights(str(args.weights_file))
+            # model.load_weights(str(args.weights_file))
+            model.load_weights(str(args.weights_file), skip_mismatch=True)
+
 
         model.compile(optimizer=tf.keras.optimizers.Adam(),
                       loss=loss,
@@ -144,7 +148,7 @@ if __name__ == '__main__':
         if args.val_metric in ['loss', 'acc']:
             monitor = ('val_' + args.val_metric) if val else args.val_metric
             checkpoint = tf.keras.callbacks.ModelCheckpoint(
-                filepath=str(args.job_dir / 'best_model.weights'),
+                filepath=str(args.job_dir / 'best_model.weights.h5'),
                 monitor=monitor,
                 save_best_only=True,
                 save_weights_only=True,
@@ -156,14 +160,14 @@ if __name__ == '__main__':
             else:
                 score_fn = f1
             checkpoint = CustomCheckpoint(
-                filepath=str(args.job_dir / 'best_model.weights'),
+                filepath=str(args.job_dir / 'best_model.weights.h5'),
                 data=(val_data, val['y']) if val else (train_data, train['y']),
                 score_fn=score_fn,
                 save_best_only=True,
                 verbose=1)
         elif args.val_metric == 'auc':
             checkpoint = CustomCheckpoint(
-                filepath=str(args.job_dir / 'best_model.weights'),
+                filepath=str(args.job_dir / 'best_model.weights.h5'),
                 data=(val_data, val['y']) if val else (train_data, train['y']),
                 score_fn=auc,
                 save_best_only=True,
@@ -181,8 +185,8 @@ if __name__ == '__main__':
         model.fit(train_data, epochs=args.epochs, verbose=2, validation_data=val_data, callbacks=callbacks)
 
         # load best model for inference
-        print('Loading the best weights from file {} ...'.format(str(args.job_dir / 'best_model.weights')))
-        model.load_weights(str(args.job_dir / 'best_model.weights'))
+        print('Loading the best weights from file {} ...'.format(str(args.job_dir / 'best_model.weights.h5')))
+        model.load_weights(str(args.job_dir / 'best_model.weights.h5'))
 
         print('Predicting training data ...')
         train_y_prob = model.predict(train['x'], batch_size=args.batch_size)

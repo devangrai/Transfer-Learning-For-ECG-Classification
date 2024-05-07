@@ -60,22 +60,28 @@ def rhythm_data_generator(patient_generator, frame_size=2048, samples_per_patien
 
     @return: Generator of: input data of shape (frame_size, 1), output data as the corresponding rhythm label.
     """
-    for _, (signal, labels) in patient_generator:
-        num_segments, segment_size = signal.shape
-        patient_rhythm_labels = labels['rtype']  # note: variables in a .npz file are only loaded when accessed
-        for _ in range(samples_per_patient):
-            # randomly choose a frame that lies within the segment i.e. no zero-padding is necessary
-            segment_index = np.random.randint(num_segments)
-            frame_start = np.random.randint(segment_size - frame_size)
-            frame_end = frame_start + frame_size
-            x = signal[segment_index, frame_start:frame_end]
-            x = np.expand_dims(x, axis=1)  # add channel dimension
-            # calculate the durations of each rhythm in the frame and determine the final label
-            rhythm_ends, rhythm_labels = patient_rhythm_labels[segment_index]
-            frame_rhythm_durations, frame_rhythm_labels = get_rhythm_durations(
-                rhythm_ends, rhythm_labels, frame_start, frame_end)
-            y = get_rhythm_label(frame_rhythm_durations, frame_rhythm_labels)
-            yield x, y
+    try:
+        for patient_id, (signal, labels) in patient_generator:
+            if signal is None:
+                logging.warning(f"Signal is None for patient {patient_id}. Skipping.")
+            else:
+                num_segments, segment_size = signal.shape
+                patient_rhythm_labels = labels['rtype']  # note: variables in a .npz file are only loaded when accessed
+                for _ in range(samples_per_patient):
+                    # randomly choose a frame that lies within the segment i.e. no zero-padding is necessary
+                    segment_index = np.random.randint(num_segments)
+                    frame_start = np.random.randint(segment_size - frame_size)
+                    frame_end = frame_start + frame_size
+                    x = signal[segment_index, frame_start:frame_end]
+                    x = np.expand_dims(x, axis=1)  # add channel dimension
+                    # calculate the durations of each rhythm in the frame and determine the final label
+                    rhythm_ends, rhythm_labels = patient_rhythm_labels[segment_index]
+                    frame_rhythm_durations, frame_rhythm_labels = get_rhythm_durations(
+                        rhythm_ends, rhythm_labels, frame_start, frame_end)
+                    y = get_rhythm_label(frame_rhythm_durations, frame_rhythm_labels)
+                    yield x, y
+    except FileNotFoundError as e:
+        logging.warning(f"FileNotFoundError: {e}. Skipping patient.")
 
 
 def beat_data_generator(patient_generator, frame_size=2048, samples_per_patient=1):
@@ -91,22 +97,29 @@ def beat_data_generator(patient_generator, frame_size=2048, samples_per_patient=
 
     @return: Generator of: input data of shape (frame_size, 1), output data as the corresponding beat label.
     """
-    for _, (signal, labels) in patient_generator:
-        num_segments, segment_size = signal.shape
-        patient_beat_labels = labels['btype']  # note: variables in a .npz file are only loaded when accessed
-        for _ in range(samples_per_patient):
-            # randomly choose a frame that lies within the segment i.e. no zero-padding is necessary
-            segment_index = np.random.randint(num_segments)
-            frame_start = np.random.randint(segment_size - frame_size)
-            frame_end = frame_start + frame_size
-            x = signal[segment_index, frame_start:frame_end]
-            x = np.expand_dims(x, axis=1)  # add channel dimension
-            # calculate the count of each beat type in the frame and determine the final label
-            beat_ends, beat_labels = patient_beat_labels[segment_index]
-            _, frame_beat_labels = get_complete_beats(
-                beat_ends, beat_labels, frame_start, frame_end)
-            y = get_beat_label(frame_beat_labels)
-            yield x, y
+    try:
+        for patient_id, (signal, labels) in patient_generator:
+            if signal is None:
+                logging.warning(f"Signal is None for patient {patient_id}. Skipping.")
+            else:
+                num_segments, segment_size = signal.shape
+                patient_beat_labels = labels['btype']  # note: variables in a .npz file are only loaded when accessed
+                for _ in range(samples_per_patient):
+                    # randomly choose a frame that lies within the segment i.e. no zero-padding is necessary
+                    segment_index = np.random.randint(num_segments)
+                    frame_start = np.random.randint(segment_size - frame_size)
+                    frame_end = frame_start + frame_size
+                    x = signal[segment_index, frame_start:frame_end]
+                    x = np.expand_dims(x, axis=1)  # add channel dimension
+                    # calculate the count of each beat type in the frame and determine the final label
+                    beat_ends, beat_labels = patient_beat_labels[segment_index]
+                    _, frame_beat_labels = get_complete_beats(
+                        beat_ends, beat_labels, frame_start, frame_end)
+                    y = get_beat_label(frame_beat_labels)
+                    yield x, y
+    except FileNotFoundError as e:
+        logging.warning(f"FileNotFoundError: {e}. Skipping patient.")
+        
 
 
 def heart_rate_data_generator(patient_generator, frame_size=2048, label_frame_size=None,
@@ -129,27 +142,32 @@ def heart_rate_data_generator(patient_generator, frame_size=2048, label_frame_si
     if label_frame_size is None:
         label_frame_size = frame_size
     max_frame_size = max(frame_size, label_frame_size)
-    for _, (signal, labels) in patient_generator:
-        num_segments, segment_size = signal.shape
-        patient_beat_labels = labels['btype']  # note: variables in a .npz file are only loaded when accessed
-        for _ in range(samples_per_patient):
-            # randomly choose a point within a segment and span a frame centered on this point
-            #  the frame must lie within the segment i.e. no zero-padding is necessary
-            segment_index = np.random.randint(num_segments)
-            frame_center = np.random.randint(segment_size - max_frame_size) + max_frame_size // 2
-            signal_frame_start = frame_center - frame_size // 2
-            signal_frame_end = frame_center + frame_size // 2
-            x = signal[segment_index, signal_frame_start:signal_frame_end]
-            x = np.expand_dims(x, axis=1)  # add channel dimension
-            # get heart rate label based on the rr intervals in an area around the frame center
-            #  determined by the label frame size
-            label_frame_start = frame_center - label_frame_size // 2
-            label_frame_end = frame_center + label_frame_size // 2
-            beat_ends, _ = patient_beat_labels[segment_index]
-            frame_beat_ends = get_complete_beats(beat_ends, start=label_frame_start, end=label_frame_end)
-            y = get_heart_rate_label(frame_beat_ends, ds_sampling_rate)
-            yield x, y
-
+    try:
+        for patient_id, (signal, labels) in patient_generator:
+            if signal is None:
+                logging.warning(f"Signal is None for patient {patient_id}. Skipping.")
+            else:
+                num_segments, segment_size = signal.shape
+                patient_beat_labels = labels['btype']  # note: variables in a .npz file are only loaded when accessed
+                for _ in range(samples_per_patient):
+                    # randomly choose a point within a segment and span a frame centered on this point
+                    #  the frame must lie within the segment i.e. no zero-padding is necessary
+                    segment_index = np.random.randint(num_segments)
+                    frame_center = np.random.randint(segment_size - max_frame_size) + max_frame_size // 2
+                    signal_frame_start = frame_center - frame_size // 2
+                    signal_frame_end = frame_center + frame_size // 2
+                    x = signal[segment_index, signal_frame_start:signal_frame_end]
+                    x = np.expand_dims(x, axis=1)  # add channel dimension
+                    # get heart rate label based on the rr intervals in an area around the frame center
+                    #  determined by the label frame size
+                    label_frame_start = frame_center - label_frame_size // 2
+                    label_frame_end = frame_center + label_frame_size // 2
+                    beat_ends, _ = patient_beat_labels[segment_index]
+                    frame_beat_ends = get_complete_beats(beat_ends, start=label_frame_start, end=label_frame_end)
+                    y = get_heart_rate_label(frame_beat_ends, ds_sampling_rate)
+                    yield x, y
+    except FileNotFoundError as e:
+        logging.warning(f"FileNotFoundError: {e}. Skipping patient.")
 
 def signal_generator(patient_generator, frame_size=2048, samples_per_patient=1):
     """
@@ -340,12 +358,15 @@ def unzip_patient_data(db_dir, patient_id, out_dir=None):
     @return: None.
     """
     signal, labels = load_patient_data(db_dir, patient_id)
+    if labels is None:
+        labels = {}
     out_signal_file = os.path.join(out_dir or os.path.curdir, '{:05d}_batched.npy'.format(patient_id))
     out_labels_file = os.path.join(out_dir or os.path.curdir, '{:05d}_batched_lbls.npz'.format(patient_id))
     np.save(out_signal_file, signal)
     np.savez(out_labels_file, **labels)
 
 
+import logging
 def load_patient_data(db_dir, patient_id, include_labels=True, unzipped=False):
     """
     Load patient data. Note, that labels are automatically flattened.
@@ -357,12 +378,15 @@ def load_patient_data(db_dir, patient_id, include_labels=True, unzipped=False):
 
     @return: Tuple of signal, labels.
     """
-    signal = load_signal(db_dir, patient_id, unzipped=unzipped)
-    if include_labels:
-        labels = load_labels(db_dir, patient_id, unzipped=unzipped)
+    try:
+        # Attempt to load the patient data
+        signal = load_signal(db_dir, patient_id, unzipped=unzipped)
+        labels = load_labels(db_dir, patient_id) if include_labels else None
         return signal, labels
-    else:
-        return signal, None
+    except FileNotFoundError as e:
+        # Handle missing file
+        logging.warning(f"FileNotFoundError: {e}. Skipping patient {patient_id}.")
+        return None, None
 
 
 def load_signal(db_dir, patient_id, unzipped=False, mmap_mode=None):
